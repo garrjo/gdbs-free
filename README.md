@@ -1,224 +1,140 @@
-# GDBS Free
+# GDBS — Geometric Database System
 
-WebAssembly physics computation engine — compiled from Rust, runs in any browser or Node.js environment. No server, no GPU, no build step required.
+A native database engine with 7-dimensional content-addressable storage, a graph traversal query language (GQL), and biologically-inspired learning dynamics. Free to download and use.
 
 **Patent Pending — 63/970,430**
 
 ---
 
-## What's included
+## What it is
 
-40+ physics simulation functions across 8 domains, compiled to a single ~750 KB `.wasm` binary:
+GDBS is a database built on geometric principles rather than relational tables:
 
-| Domain | Functions |
-|--------|-----------|
-| Materials | Elastic constants (VRH), band gaps, phase diagrams, thermal properties, defect formation |
-| Plasma | Circular / shaped tokamak, negative triangularity, stellarator, FRC, eigenmode, stability |
-| Fluids | Compressible flow, pipe flow, heat transfer, heat flow, drag |
-| Molecular Dynamics | Geometric MD, nanoparticle interaction, molecular binding |
-| Quantum | Circuits, entanglement, decoherence, error correction, fidelity, state binding |
-| Geophysics | Seismic wave propagation, earthquake parameters, boundary conditions, stress analysis |
-| Cosmology | Black hole thermodynamics, CMB spectrum, gravitational constants, orbital mechanics |
-| Medical | QSAR molecular property prediction |
+| Concept | GDBS equivalent | Description |
+|---------|----------------|-------------|
+| Table | **Tile** | A named collection of seeds |
+| Row | **Seed** | Content-addressed record (SHA-256, 16 hex chars) |
+| Foreign key | **Symlink** | Typed, weighted bidirectional link between seeds |
+| Index | **Hub** | Auto-linked concept cluster with depth-map recall |
+| Schema | **7D position** | Each seed occupies a geometric coordinate — proximity = similarity |
+
+---
+
+## Download
+
+| Platform | Download |
+|----------|----------|
+| Windows x64 | [GDBS-1.0.0-win64.zip](https://github.com/garrjo/gdbs-free/releases/latest) |
+| macOS / Linux | Coming in v1.1.0 |
 
 ---
 
 ## Quick start
 
-### Browser (ES module)
+```bash
+# Store content
+gdbs store "Diamond bulk modulus is 442 GPa, measured by Brillouin scattering"
 
-```html
-<script type="module">
-  import init, { run_elastic_scan } from './gdbs_web_client.js';
+# Query with GQL
+gdbs -c "NEARBY 'bulk modulus' LIMIT 5"
 
-  await init();
+# Interactive REPL
+gdbs
 
-  const result = JSON.parse(run_elastic_scan(JSON.stringify({
-    materials: ['Diamond', 'Silicon', 'Aluminium'],
-    precision: 0
-  })));
-
-  console.log(result);
-  // [{ name: 'Diamond', bulk_modulus: 442.7, shear_modulus: 535.3, ... }, ...]
-</script>
-```
-
-### Node.js (≥18)
-
-```js
-import { readFile } from 'fs/promises';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
-
-// Load the wasm-bindgen glue
-const { default: init, run_elastic_scan, run_circular_scan } =
-  await import('./gdbs_web_client.js');
-
-// Point init() at the .wasm file
-const wasmPath = join(dirname(fileURLToPath(import.meta.url)), 'gdbs_web_client_bg.wasm');
-await init({ module_or_path: await readFile(wasmPath) });
-
-// Run a materials scan
-const elastic = JSON.parse(run_elastic_scan(JSON.stringify({
-  materials: ['Diamond', 'Silicon', 'Iron', 'Titanium'],
-  precision: 0
-})));
-console.table(elastic.map(r => ({
-  name: r.name,
-  B_GPa: r.bulk_modulus,
-  G_GPa: r.shear_modulus,
-  E_GPa: r.youngs_modulus,
-  poisson: r.poisson_ratio
-})));
+# Start as a server (port 6432)
+gdbs serve
 ```
 
 ---
 
-## Examples
+## GQL — Geometric Query Language
 
-### Diamond bulk modulus
+GQL maps directly to standard database operations:
 
-```js
-const result = JSON.parse(run_elastic_scan(JSON.stringify({
-  materials: ['Diamond'],
-  precision: 0
-})));
-// result[0].bulk_modulus → 442.7 GPa   (literature: 442 GPa, error < 0.2%)
+```gql
+-- Create a tile (table)
+CREATE TILE materials
+
+-- Store a seed (insert)
+STORE 'Diamond: B=442 GPa, G=535 GPa, E=1050 GPa'
+WITH type = 'elastic_data',
+     material = 'Diamond',
+     source = 'Grimsditch & Ramdas, 1975'
+IN materials
+AS $diamond;
+
+-- Link two seeds
+LINK $diamond TO $silicon WEIGHT 0.7 TYPE semantic
+
+-- Query by proximity (geometric nearest-neighbour)
+NEARBY 'bulk modulus cubic crystal' IN materials LIMIT 10
+
+-- Graph traversal
+TRAVERSE $diamond DEPTH 3 WHERE type IN ('semantic', 'reference')
+
+-- Standard CRUD
+SELECT * FROM materials WHERE metadata.material = 'Diamond'
+UPDATE SEED abc123def45678 SET metadata.status = 'verified'
+DELETE SEED abc123def45678 CASCADE
 ```
 
-### Tokamak plasma parameters
+### SQL interop
 
-```js
-const result = JSON.parse(run_circular_scan(JSON.stringify({
-  configs: [{
-    major_radius: 6.2,      // ITER — metres
-    minor_radius: 2.0,
-    magnetic_field: 5.3,    // Tesla
-    plasma_current: 15.0,   // MA
-    elongation: 1.7,
-    triangularity: 0.33
-  }],
-  precision: 0
-})));
-// result[0].beta, safety_factor, energy_confinement_time, ...
-```
+Standard SQL is translated automatically:
 
-### Black hole thermodynamics
+```sql
+INSERT INTO materials (content, metadata)
+VALUES ('Silicon: B=98 GPa', '{"material": "Silicon"}');
 
-```js
-const result = JSON.parse(run_blackhole_scan(JSON.stringify({
-  black_holes: [{
-    mass_solar: 1.0,          // solar masses
-    spin_parameter: 0.0,      // Schwarzschild (a=0)
-    charge_parameter: 0.0
-  }],
-  precision: 0
-})));
-// result[0].hawking_temperature_k → 6.17e-8 K   (literature: 6.17e-8 K)
-```
+SELECT * FROM materials WHERE metadata.material = 'Silicon';
 
-### Molecular dynamics — surface erosion
-
-```js
-const result = JSON.parse(run_geometric_md(JSON.stringify({
-  n_atoms: 500,
-  n_steps: 1000,
-  temperature: 300,
-  timestep: 0.001,
-  lattice_constant: 3.52,   // Ni-like FCC, Angstroms
-  precision: 0
-})));
-// result.msd_final, manifold_curvature, surface_coherence, ...
-```
-
-### Seismic wave propagation
-
-```js
-const result = JSON.parse(run_seismic_scan(JSON.stringify({
-  configs: [{
-    vp: 6.0,       // P-wave velocity km/s
-    vs: 3.5,       // S-wave velocity km/s
-    density: 2700, // kg/m³
-    depth: 10.0    // km
-  }],
-  precision: 0
-})));
+DELETE FROM materials WHERE metadata.source = 'unverified';
 ```
 
 ---
 
-## All functions
+## Learning engine
 
-Every function takes a JSON string and returns a JSON string. All accept a `precision` field (integer 0–3) trading speed for accuracy.
+GDBS includes a biologically-inspired memory system:
 
-**Defaults** — call these first to see accepted parameter shapes:
-```
-get_materials_defaults()  get_fluid_defaults()  get_cosmic_defaults()
-get_geo_defaults()        get_md_defaults()      get_quantum_defaults()
-get_molecular_defaults()  get_defaults()
-```
-
-**Computation functions:**
-```
-Materials:   run_elastic_scan      run_bandgap_scan      run_phase_scan
-             run_thermal_scan      run_defect_scan
-
-Plasma:      run_circular_scan     run_shaped_scan       run_neg_tri_scan
-             run_stellarator_scan  run_frc_scan          run_eigenmode
-             run_optimizer         run_simulation        run_stability_sim
-
-Fluids:      run_compressible_scan run_pipeflow_scan     run_heatflow_scan
-             run_heattransfer_scan run_drag_scan
-
-Molecular:   run_geometric_md      run_interaction_scan  run_nanoparticle_scan
-             run_binding_scan
-
-Quantum:     run_circuit_scan      run_entanglement_scan run_decoherence_scan
-             run_errorcorrection_scan run_fidelity_scan
-
-Geophysics:  run_seismic_scan      run_earthquake_scan   run_boundary_scan
-             run_stress_scan       run_gravity_scan
-
-Cosmology:   run_blackhole_scan    run_cmb_scan          run_constants_scan
-             run_ratios_scan       run_rotation_scan
-
-Medical:     run_qsar_scan
-```
+- **Hebbian learning** — connections strengthen with co-activation
+- **STDP** — spike-timing-dependent plasticity (LTP / LTD)
+- **Memory stages** — STM → Working → Long-Term Memory
+- **Automatic decay** — unused connections weaken over time
+- **Consolidation** — periodic memory state compaction
 
 ---
 
-## Precision parameter
+## CLI reference
 
 ```
-precision: 0   →  standard IEEE 754 speed  (fastest)
-precision: 1   →  256-shade GeoNum tier
-precision: 2   →  512-shade GeoNum tier
-precision: 3   →  1024-shade GeoNum tier   (highest accuracy)
+gdbs store "content"          Store content, returns seed ID
+gdbs search "query"           Search by content similarity
+gdbs -c "GQL statement"       Execute a single GQL statement
+gdbs serve [--port 6432]      Start HTTP + WebSocket server
+gdbs stats                    Show database statistics
+gdbs --db path/to/db.gdbs     Use a specific database file
+gdbs --format json|table      Output format
+gdbs --help                   Full command reference
 ```
 
-Results at precision ≥ 1 include additional fields: `tiered_coherence`, uncertainty metrics.
+Default database: `~/.gdbs/default.gdbs`
 
 ---
 
-## Build from source
+## Physics domain modules
 
-The Rust source is not included in this distribution. The WASM binary was built with:
-
-```
-wasm-pack build --target web --release
-```
-
-Requires [wasm-pack](https://rustwasm.github.io/wasm-pack/) and the `wasm32-unknown-unknown` Rust target.
+The GDBS physics compute engines (plasma, materials, fluids, molecular dynamics, quantum, geophysics, cosmology) are available as add-on modules via [GDBS Web](https://gdbs.getvaultsync.com). They run on top of GDBS and write validated simulation results directly into the geometric database.
 
 ---
 
 ## Attribution
 
-If you use GDBS Free in published work, a citation is appreciated:
+If you use GDBS in published work, a citation is appreciated:
 
-> GDBS Free (2025). WebAssembly Physics Engine. VaultSync Solutions Inc.
+> Garrett, J. (2026). GDBS: Geometric Database System. VaultSync Solutions Inc.
 > https://gdbs.getvaultsync.com
 
 ---
 
-Apache License 2.0 — see [LICENSE](LICENSE).
+Free to use. Source not included. See [LICENSE](LICENSE).

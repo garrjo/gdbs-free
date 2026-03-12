@@ -1,12 +1,3 @@
-# Compiled artifacts (populated by pack.ps1)
-gdbs_web_client.js
-gdbs_web_client.d.ts
-gdbs_web_client_bg.wasm
-gdbs_web_client_bg.wasm.d.ts
-
-# Generated zips
-*.zip
-
 # OS
 .DS_Store
 Thumbs.db

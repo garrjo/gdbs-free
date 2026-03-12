@@ -1,0 +1,38 @@
+-- GDBS Quick Start — GQL examples
+-- Run with: gdbs -c "<statement>"  or paste into the interactive REPL (gdbs)
+
+-- Create a tile (table)
+CREATE TILE materials
+
+-- Store seeds (insert rows)
+STORE 'Diamond: bulk modulus 442 GPa, shear 535 GPa, Debye 2220 K'
+WITH type = 'elastic',
+     material = 'Diamond',
+     source = 'Grimsditch & Ramdas, 1975'
+IN materials
+AS $diamond;
+
+STORE 'Silicon: bulk modulus 98 GPa, shear 66 GPa, Debye 645 K'
+WITH type = 'elastic',
+     material = 'Silicon',
+     source = 'Hall, 1967'
+IN materials
+AS $silicon;
+
+-- Link related seeds
+LINK $diamond TO $silicon WEIGHT 0.6 TYPE semantic
+
+-- Geometric nearest-neighbour query
+NEARBY 'bulk modulus cubic crystal' IN materials LIMIT 10
+
+-- Graph traversal
+TRAVERSE $diamond DEPTH 2
+
+-- Standard SELECT
+SELECT * FROM materials WHERE metadata.type = 'elastic'
+
+-- Update a seed
+UPDATE SEED $diamond SET metadata.verified = true
+
+-- Delete a seed
+DELETE SEED $silicon CASCADE
